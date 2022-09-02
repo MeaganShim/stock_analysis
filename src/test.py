@@ -6,6 +6,7 @@ from ta import add_all_ta_features
 from ta.utils import dropna
 import seaborn as sns
 
+# link: https://medium.com/analytics-vidhya/python-for-stock-analysis-fcff252ca559
 
 def get_basic_data(stock_df):
     # get basic stock infor by analyzing df using pandas
@@ -42,16 +43,25 @@ def daily_return(stock_df):
     # print(stock_df['Daily Return'])
     # change the y-axis to density
     plot = sns.displot(stock_df['Daily Return'].dropna(),bins=50,color='blue')
-    plot.set_ylabel("Density")
     plt.show()
 
-def comp_daily_return(stock_list):
+def comp_daily_return(stock_list, symbol_list):
     data = []
-    for stock in stock_list:
+    for stock, symbol in zip(stock_list, symbol_list):
         stock_data = pd.DataFrame()
-        stock_data = stock[['Adj Close', 'Symbol']]
+        stock_data = stock[['Adj Close', 'Date']]
+        stock_data['Symbol'] = symbol
         stock_data.reset_index()
-        data.append(stock_data)
+        print(stock_data)
+        data.append(stock_data.head())
+    df = pd.concat(data)
+    df = df.reset_index()
+    df = df[['Date', 'Adj Close', 'Symbol']]
+    df.head()
+    df_pivot=df.pivot('Date', 'Symbol', 'Adj Close').reset_index()
+    print(df_pivot.head())
+
+
 
 def main():
     # read in stock csv files 
@@ -64,7 +74,12 @@ def main():
     # price_change(AAPL)
     # tech_indicators(AAPL)
     # moving_averages(AAPL)
-    daily_return(AAPL)
+    # daily_return(AAPL)
+
+    stocks = [AAPL, MSFT, INTC, GOOG, AMZN]
+    symbols = ['AAPL', 'MSFT', 'INTC', 'GOOG', 'AMZN']
+    comp_daily_return(stocks, symbols)
+
 
 
 main()
