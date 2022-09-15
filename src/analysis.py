@@ -1,13 +1,17 @@
 from dataclasses import dataclass
+import shutil
+from unittest import result
 import pandas as pd 
 import os
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 from ta import add_all_ta_features
 from ta.utils import dropna
 import seaborn as sns
 
 pd.options.mode.chained_assignment = None  # default='warn'
 
+# link: https://medium.com/analytics-vidhya/python-for-stock-analysis-fcff252ca559
 
 def get_basic_data(stock_df):
     # get basic stock infor by analyzing df using pandas
@@ -16,37 +20,51 @@ def get_basic_data(stock_df):
     print(stock_df.info())
 
 
-def price_change(stock_df):
-    # plot stocks change in price over time based on the adjusted close
-    stock_df['Adj Close'].plot(legend=True,figsize=(12,5))
+def price_change(stock_df, stock_name):
+    # plots change in stock price over time based on the adjusted close value
     stock_df.set_index('Date',inplace=True)
-    # plt.show()
-
+    stock_df['Adj Close'].plot(legend=True,figsize=(12,5))
+    plt.title(f"{stock_name} Stock Price")
+    plt.show()
     # plot the change in traded volume for a particular stock
     stock_df.plot(legend=True,figsize=(12,5))
-    # plt.show()
+    plt.show()
 
 def tech_indicators(stock_df):
     ta_data = add_all_ta_features(stock_df, open="Open", high="High", low="Low", close="Close", volume="Volume")
     print(ta_data.columns)
 
-def moving_averages(stock_df):
+def moving_averages(stock_df, stock_name):
+    """
+    Compute the moving averages for stocks over 10, 20, and 50 day period
+    Used to identify possible indicators of trend changes when considering long and short positions
+    """
     mov_avg_days = [10, 20, 50]
     for day in mov_avg_days:
         column_name = "MA for %s days" %(str(day))
         stock_df[column_name] = stock_df['Adj Close'].rolling(window=day,center=False).mean()
-    print(stock_df.tail())
+    # print(stock_df.tail())
+    stock_df.set_index('Date',inplace=True)
     stock_df[['Adj Close','MA for 10 days','MA for 20 days','MA for 50 days']].plot(subplots=False,figsize=(12,5))
+    plt.title(f"{stock_name} Moving Averages")
     plt.show()
 
-def daily_return(stock_df):
+def daily_return(stock_df, stock_name):
+    """
+    Indicate polarity of daily returns for a particular stock
+    """
     stock_df['Daily Return'] = stock_df['Adj Close'].pct_change()
     # print(stock_df['Daily Return'])
-    # change the y-axis to density
     plot = sns.displot(stock_df['Daily Return'].dropna(),bins=50,color='blue')
+    plt.title(f"{stock_name} Daily Return")
     plt.show()
 
 def comp_daily_return_corr(stock_list, symbol_list):
+    """ 
+    Calculate the correlation of daily returns values from a list of different stocks
+    Combine all stock data into a single dataframe 
+    Compute Pearson correlation coefficient
+    """
     data = []
     for stock, symbol in zip(stock_list, symbol_list):
         stock_data = pd.DataFrame()
@@ -66,13 +84,19 @@ def comp_daily_return_corr(stock_list, symbol_list):
  
     plt.figure(figsize=(13, 8))
     sns.heatmap(corr_df, annot=True, cmap="RdYlGn")
+    plt.title(f"Correlation Matrix")
     # plt.show()
   
     return df_pivot, corr_df
 
 def stock_returns_plt(df_pivot):
+    """
+    Plot the return of of a list of stocks using the Adjusted Close Price
+    """
+    df_pivot.set_index('Date',inplace=True)
     df_pivot.plot(figsize=(10,4))
     plt.ylabel('Price')
+    plt.title(f"Price Plot for all Stocks 2021")
     plt.show()
     return
 
@@ -87,23 +111,30 @@ def normalizing_stocks(df_pivot):
     return
 
 def daily_ret_percent(df_pivot):
+    """
+    Daily percentage return value for a list of stocks 
+    """
     percent_diff_df = df_pivot[['AAPL', 'AMZN', 'GOOG', 'INTC', 'MSFT']].pct_change()
     percent_diff_df.insert(0, 'Date', df_pivot['Date'])
+    percent_diff_df.set_index('Date',inplace=True)
     percent_diff_df.plot(figsize=(10,4))
     plt.axhline(0, color='black', lw=1)
     plt.ylabel('Daily Percentage Return')
+    plt.title("Daily Percentage Return")
     plt.show()
     # for most plots fix xaxis so it shows the date
     return
     
 def investment_risk_val(corr_df):
-    # Compute value of risk in investing in particular stock
+    """
+    Quantify risk of investing in a particular stock by comparing the 
+    expected return with that standard deviation of daily returns 
+    """
     risk_df = corr_df.dropna()
     plt.figure(figsize=(8,5))
     plt.scatter(risk_df.mean(),risk_df.std(),s=25)
     plt.xlabel('Expected Return')
     plt.ylabel('Risk')
-
 
     # add annotations to the scatterplot
     for label,x,y in zip(risk_df.columns,risk_df.mean(),risk_df.std()):
@@ -116,9 +147,12 @@ def investment_risk_val(corr_df):
     return
 
 def get_val_at_risk(stock_df):
-    # Compute the daily return 
+    """
+    Compute the value at risk (amount of money we expect to lose of a given confidence interval) 
+    """
     stock_df['Daily Return'] = stock_df['Close'] - stock_df['Open']
     sns.displot(stock_df['Daily Return'].dropna(),bins=100,color='purple')
+    plt.title("Daily Percentage Return")
     plt.show()
     return
 
@@ -126,21 +160,31 @@ def get_val_at_risk(stock_df):
 
 def main():
     # read in stock csv files 
-    AAPL = pd.read_csv("./Data/AAPL.csv")
-    MSFT = pd.read_csv("./Data/MSFT.csv")
-    INTC = pd.read_csv("./Data/INTC.csv")
-    GOOG = pd.read_csv("./Data/GOOG.csv")
-    AMZN = pd.read_csv("./Data/AMZN.csv")
+    AAPL = pd.read_csv("./Data/AAPL.csv").dropna()
+    MSFT = pd.read_csv("./Data/MSFT.csv").dropna()
+    INTC = pd.read_csv("./Data/INTC.csv").dropna()
+    GOOG = pd.read_csv("./Data/GOOG.csv").dropna()
+    AMZN = pd.read_csv("./Data/AMZN.csv").dropna()
 
-    # price_change(AAPL)
+    result_path = './Results'
+    if os.path.exists(result_path):
+        shutil.rmtree(result_path, ignore_errors=False, onerror=None)
+    
+    # create new directory 
+    # os.makedir(result_path)
+
+    symbols = ['AAPL', 'MSFT', 'INTC', 'GOOG', 'AMZN']
+    stocks = [AAPL, MSFT, INTC, GOOG, AMZN]
+
+    # create directories corresponding to each stock
+
+    # price_change(AAPL, symbols[0])
     # tech_indicators(AAPL)
-    moving_averages(AAPL)
+    # moving_averages(AAPL)
     # daily_return(AAPL)
 
-    stocks = [AAPL, MSFT, INTC, GOOG, AMZN]
-    symbols = ['AAPL', 'MSFT', 'INTC', 'GOOG', 'AMZN']
-    # df_pivot, corr_df = comp_daily_return_corr(stocks, symbols)
-    # stock_returns_plt(df_pivot)
+    df_pivot, corr_df = comp_daily_return_corr(stocks, symbols)
+    stock_returns_plt(df_pivot)
     # normalizing_stocks(df_pivot)
     # daily_ret_percent(df_pivot)
     # investment_risk_val(corr_df)
